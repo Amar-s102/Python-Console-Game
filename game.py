@@ -3,131 +3,299 @@ import random
 import json
 import colorama
 
+
 class Game:
     def __init__(self):
-        self.high_score = 0
+        colorama.init(autoreset=True)
+
+        self.grid_size = 20
         self.health = 100
-        self.difficulty = 'normal'
+        self.score = 0
+        self.moves = 0
+        self.high_score = 0
+
+        self.difficulty = "normal"
         self.debug_mode = False
+
+        self.player_position = None
+        self.goal_position = None
         self.enemies = []
-        self.grid_size = 5
-        colorama.init()
+
         self.load_high_score()
 
     def load_high_score(self):
-        if os.path.exists('high_score.json'):
-            with open('high_score.json', 'r') as f:
-                data = json.load(f)
-                self.high_score = data.get('high_score', 0)
+        try:
+            if os.path.exists("high_score.json"):
+                with open("high_score.json", "r") as file:
+                    data = json.load(file)
+                    self.high_score = data.get("high_score", 0)
+        except (json.JSONDecodeError, OSError):
+            self.high_score = 0
 
     def save_high_score(self):
-        with open('high_score.json', 'w') as f:
-            json.dump({'high_score': self.high_score}, f)
+        try:
+            with open("high_score.json", "w") as file:
+                json.dump({"high_score": self.high_score}, file)
+        except OSError:
+            print("Could not save high score.")
 
     def clear_screen(self):
-        os.system('cls' if os.name == 'nt' else 'clear')
+        os.system("cls" if os.name == "nt" else "clear")
+
+    def pause(self):
+        input("\nPress Enter to continue...")
 
     def main_menu(self):
         while True:
             self.clear_screen()
-            print("=== Main Menu ===")
+            print("=== PYTHON CONSOLE GRID GAME ===")
             print("1. Start Game")
             print("2. Instructions")
             print("3. Show High Score")
             print("4. Choose Difficulty")
-            print("5. Debug Mode")
+            print("5. Toggle Debug Mode")
             print("6. Exit")
-            choice = input("Select an option: ")
-            if choice == '1':
+            print(f"\nCurrent difficulty: {self.difficulty.title()}")
+            print(f"Debug mode: {'ON' if self.debug_mode else 'OFF'}")
+
+            choice = input("\nSelect an option: ").strip()
+
+            if choice == "1":
                 self.play_game()
-            elif choice == '2':
+            elif choice == "2":
                 self.show_instructions()
-            elif choice == '3':
+            elif choice == "3":
                 self.show_high_score()
-            elif choice == '4':
+            elif choice == "4":
                 self.choose_difficulty()
-            elif choice == '5':
-                self.ask_debug_mode()
-            elif choice == '6':
+            elif choice == "5":
+                self.toggle_debug_mode()
+            elif choice == "6":
                 print("Goodbye!")
                 break
             else:
-                print("Invalid choice! Please try again.")
+                print("Invalid choice. Please select a number from 1 to 6.")
+                self.pause()
 
     def show_instructions(self):
-        print("Instructions: Navigate the player and avoid enemies to achieve the highest score!")
-        input("Press Enter to return to main menu...")
+        self.clear_screen()
+        print("=== INSTRUCTIONS ===")
+        print("Move the player P around the 20 x 20 grid.")
+        print("Use W to move up, S to move down, A to move left, and D to move right.")
+        print("Reach the goal G to win the game.")
+        print("Avoid enemies E because touching one removes extra health.")
+        print("Each valid move reduces health.")
+        print("The game ends when you reach the goal or your health reaches zero.")
+        print("Debug mode can hide or show enemies and the goal for testing.")
+        self.pause()
 
     def show_high_score(self):
-        print(f"High Score: {self.high_score}")
-        input("Press Enter to return to main menu...")
+        self.clear_screen()
+        print("=== HIGH SCORE ===")
+        print(f"Current high score: {self.high_score}")
+        self.pause()
 
     def choose_difficulty(self):
-        print("Choose Difficulty:")
-        print("1. Easy")
-        print("2. Normal")
-        print("3. Hard")
-        choice = input("Select an option: ")
-        if choice == '1':
-            self.difficulty = 'easy'
-        elif choice == '2':
-            self.difficulty = 'normal'
-        elif choice == '3':
-            self.difficulty = 'hard'
+        self.clear_screen()
+        print("=== CHOOSE DIFFICULTY ===")
+        print("1. Easy   - 5 enemies, 1 health lost per move, 5 enemy damage")
+        print("2. Normal - 8 enemies, 1 health lost per move, 5 enemy damage")
+        print("3. Hard   - 12 enemies, 2 health lost per move, 10 enemy damage")
+
+        choice = input("\nSelect an option: ").strip()
+
+        if choice == "1":
+            self.difficulty = "easy"
+        elif choice == "2":
+            self.difficulty = "normal"
+        elif choice == "3":
+            self.difficulty = "hard"
         else:
-            print("Invalid choice! Defaulting to normal.")
-            self.difficulty = 'normal'
-        input("Press Enter to return to main menu...")
+            print("Invalid choice. Difficulty remains unchanged.")
+            self.pause()
+            return
 
-    def ask_debug_mode(self):
-        choice = input("Enable debug mode? (y/n): ")
-        self.debug_mode = True if choice.lower() == 'y' else False
-        input("Press Enter to return to main menu...")
+        print(f"Difficulty set to {self.difficulty.title()}.")
+        self.pause()
 
-    def create_enemies(self):
+    def toggle_debug_mode(self):
+        self.debug_mode = not self.debug_mode
+        print(f"Debug mode is now {'ON' if self.debug_mode else 'OFF'}.")
+        self.pause()
+
+    def get_difficulty_settings(self):
+        if self.difficulty == "easy":
+            return 5, 1, 5
+        if self.difficulty == "hard":
+            return 12, 2, 10
+        return 8, 1, 5
+
+    def generate_random_position(self, used_positions):
+        while True:
+            row = random.randint(0, self.grid_size - 1)
+            col = random.randint(0, self.grid_size - 1)
+            position = [row, col]
+
+            if position not in used_positions:
+                return position
+
+    def setup_game(self):
+        self.health = 100
+        self.score = 0
+        self.moves = 0
         self.enemies = []
-        number_of_enemies = {'easy': 2, 'normal': 4, 'hard': 6}[self.difficulty]
-        for _ in range(number_of_enemies):
-            self.enemies.append({'x': random.randint(0, self.grid_size - 1), 'y': random.randint(0, self.grid_size - 1)})
+
+        enemy_count, _, _ = self.get_difficulty_settings()
+        used_positions = []
+
+        self.player_position = self.generate_random_position(used_positions)
+        used_positions.append(self.player_position)
+
+        self.goal_position = self.generate_random_position(used_positions)
+        used_positions.append(self.goal_position)
+
+        for _ in range(enemy_count):
+            enemy_position = self.generate_random_position(used_positions)
+            self.enemies.append(enemy_position)
+            used_positions.append(enemy_position)
+
+    def create_grid(self):
+        return [["." for _ in range(self.grid_size)] for _ in range(self.grid_size)]
 
     def display_grid(self):
-        print("Grid:")
-        for row in range(self.grid_size):
-            line = "|"
-            for col in range(self.grid_size):
-                if any(enemy['x'] == col and enemy['y'] == row for enemy in self.enemies):
-                    line += "E|"
-                else:
-                    line += " |"
-            print(line)
-        print(f"Your Health: {self.health}")
+        grid = self.create_grid()
 
-    def move_player(self):
-        move = input("Move (w/a/s/d): ")
-        # Logic for moving player goes here
+        player_row, player_col = self.player_position
+        goal_row, goal_col = self.goal_position
 
-    def check_game_state(self):
-        # Check for enemy collision or goal detection
-        for enemy in self.enemies:
-            if enemy['x'] == player_x and enemy['y'] == player_y:
-                self.health -= 1
-                if self.health <= 0:
-                    print("Game Over!")
-                    return False
-        return True
+    
+        if self.debug_mode:
+            grid[goal_row][goal_col] = colorama.Fore.GREEN + "G" + colorama.Style.RESET_ALL
+
+            for enemy in self.enemies:
+                enemy_row, enemy_col = enemy
+                grid[enemy_row][enemy_col] = colorama.Fore.RED + "E" + colorama.Style.RESET_ALL
+        else:
+            grid[goal_row][goal_col] = colorama.Fore.GREEN + "G" + colorama.Style.RESET_ALL
+            for enemy in self.enemies:
+                enemy_row, enemy_col = enemy
+                grid[enemy_row][enemy_col] = colorama.Fore.RED + "E" + colorama.Style.RESET_ALL
+
+        grid[player_row][player_col] = colorama.Fore.CYAN + "P" + colorama.Style.RESET_ALL
+
+        print("=== GAME SCREEN ===")
+        print(f"Difficulty: {self.difficulty.title()}")
+        print(f"Health: {self.health}")
+        print(f"Score: {self.score}")
+        print(f"Moves: {self.moves}")
+        print(f"High Score: {self.high_score}")
+        print()
+
+        for row in grid:
+            print(" ".join(row))
+
+    def get_new_position(self, move):
+        row, col = self.player_position
+
+        if move == "w":
+            row -= 1
+        elif move == "s":
+            row += 1
+        elif move == "a":
+            col -= 1
+        elif move == "d":
+            col += 1
+
+        return [row, col]
+
+    def is_inside_grid(self, position):
+        row, col = position
+        return 0 <= row < self.grid_size and 0 <= col < self.grid_size
+
+    def handle_move(self, move):
+        _, move_health_loss, enemy_damage = self.get_difficulty_settings()
+
+        if move not in ["w", "a", "s", "d"]:
+            return "Invalid input. Use W, A, S, or D."
+
+        new_position = self.get_new_position(move)
+
+        if not self.is_inside_grid(new_position):
+            return "You cannot move outside the grid."
+
+        self.player_position = new_position
+        self.health -= move_health_loss
+        self.moves += 1
+        self.score += 10
+
+        if self.player_position in self.enemies:
+            self.health -= enemy_damage
+            self.score -= 5
+            return f"You hit an enemy and lost {enemy_damage} extra health."
+
+        return ""
+
+    def check_win(self):
+        return self.player_position == self.goal_position
+
+    def check_loss(self):
+        return self.health <= 0
+
+    def finish_game(self, won):
+        self.clear_screen()
+
+        if won:
+            bonus = self.health * 2
+            self.score += bonus
+            print(colorama.Fore.GREEN + "You reached the goal. You win!" + colorama.Style.RESET_ALL)
+            print(f"Health bonus added: {bonus}")
+        else:
+            print(colorama.Fore.RED + "Game Over. Your health reached zero." + colorama.Style.RESET_ALL)
+
+        print(f"Final score: {self.score}")
+        print(f"Total moves: {self.moves}")
+
+        if self.score > self.high_score:
+            self.high_score = self.score
+            self.save_high_score()
+            print("New high score saved.")
+        else:
+            self.save_high_score()
+
+        self.pause()
 
     def play_game(self):
-        self.create_enemies()
-        while self.health > 0:
+        self.setup_game()
+        message = ""
+
+        while True:
+            self.clear_screen()
             self.display_grid()
-            self.move_player()
-            if not self.check_game_state():
-                break
-        self.save_high_score()
+
+            if message:
+                print("\n" + message)
+
+            move = input("\nMove (W/A/S/D) or Q to quit: ").strip().lower()
+
+            if move == "q":
+                print("Game exited.")
+                self.pause()
+                return
+
+            message = self.handle_move(move)
+
+            if self.check_win():
+                self.finish_game(won=True)
+                return
+
+            if self.check_loss():
+                self.finish_game(won=False)
+                return
 
     def run(self):
         self.main_menu()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     game = Game()
     game.run()
